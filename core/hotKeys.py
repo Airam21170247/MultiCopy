@@ -2,6 +2,7 @@
 
 from pynput import keyboard
 from core.clipboardManager import ClipboardManager
+from utils.config import config
 import threading
 import time
 
@@ -9,18 +10,16 @@ import time
 class HotkeyManager:
     def __init__(self, on_show_overlay_callback=None):
         self.on_show_overlay = on_show_overlay_callback
-
-        self.listener = keyboard.GlobalHotKeys({
-            '<ctrl>+c': self._on_copy,
-            '<ctrl>+<shift>+v': self._on_show_overlay
-        })
+        self.listener = None
 
     def _on_copy(self):
-        # Ejecutar con pequeño delay en otro hilo
-        threading.Thread(target=self._delayed_clipboard_read, daemon=True).start()
+        threading.Thread(
+            target=self._delayed_clipboard_read,
+            daemon=True
+        ).start()
 
     def _delayed_clipboard_read(self):
-        time.sleep(0.05)  # 50 ms (clave)
+        time.sleep(0.05)
         text = ClipboardManager.read_clipboard()
         if text:
             ClipboardManager.add_text(text)
@@ -30,7 +29,8 @@ class HotkeyManager:
             self.on_show_overlay()
 
     def start(self):
+        self.listener = keyboard.GlobalHotKeys({
+            '<ctrl>+c': self._on_copy,
+            config.show_overlay_hotkey: self._on_show_overlay
+        })
         self.listener.start()
-
-    def stop(self):
-        self.listener.stop()
