@@ -34,3 +34,8 @@ class HotkeyManager:
             config.show_overlay_hotkey: self._on_show_overlay
         })
         self.listener.start()
+        
+    def stop(self):
+        if self.listener:
+            self.listener.stop()
+            self.listener = None

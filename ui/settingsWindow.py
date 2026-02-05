@@ -11,7 +11,8 @@ class SettingsWindow:
 
         self.root = tk.Tk()
         self.root.title("MultiCopy")
-        self.root.geometry("300x180")
+        self.root.geometry("400x280")
+        self.center_window(400, 280)
         self.root.resizable(False, False)
 
         # ------------------------
@@ -53,3 +54,12 @@ class SettingsWindow:
 
     def run(self):
         self.root.mainloop()
+    
+    def center_window(self, width, height):
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+
+        x = (screen_w // 2) - (width // 2)
+        y = (screen_h // 2) - (height // 2)
+
+        self.root.geometry(f"{width}x{height}+{x}+{y}")

@@ -1,148 +1,245 @@
-# Overlay UI for displaying clipboard history and allowing selection.
+# Overlay UI for clipboard management using Tkinter.
 
 import tkinter as tk
+from tkinter import ttk
 from core.clipboardManager import ClipboardManager
-from core.state import state
-from utils.mouse import get_mouse_position
-from pynput.keyboard import Controller, Key
+import pyautogui
 
-keyboard_controller = Controller() # Initialize keyboard controller
+MAX_VISIBLE_ITEMS = 5
+ROW_WIDTH = 110
+ROW_HEIGHT = 43
+TOP_BAR_HEIGHT = 43
+
+savedX = 0
+savedY = 0
 
 class ClipboardOverlay:
-    def __init__(self):
-        self.root = tk.Tk()
-        self.root.withdraw()  # hidden by default
+    def __init__(self, on_open_settings=None, on_stop_listener=None):
+        self.on_open_settings = on_open_settings
+        self.on_stop_listener = on_stop_listener
 
-        self.root.overrideredirect(True)  # no window decorations
+        self.selected_index = 0
+        self.item_rows = []
+
+        self.root = tk.Tk()
+        self.root.withdraw()
+        self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
 
-        self.root.configure(bg="white")
-
-        self.frame = tk.Frame(self.root, bg="white", bd=1, relief="solid")
-        self.frame.pack(fill="both", expand=True)
-
-        self.items_widgets = []
-
+        # Keyboard
+        self.root.bind("<Up>", self.move_up)
+        self.root.bind("<Down>", self.move_down)
+        self.root.bind("<Return>", self.confirm_selected)
         self.root.bind("<Escape>", lambda e: self.hide())
-        self.root.bind("<Up>", self.select_up)
-        self.root.bind("<Down>", self.select_down)
-        self.root.bind("<Return>", self.paste_selected)
 
-    # -----------------------------
-    # SHOW / HIDE
-    # -----------------------------
+        # -------------------------
+        # Top bar (gear only)
+        # -------------------------
+
+        top_bar = tk.Frame(
+            self.root,
+            bg="#f5f5f5",
+            height=TOP_BAR_HEIGHT
+        )
+        top_bar.pack(fill="x")
+        top_bar.pack_propagate(False)
+        
+        self.items_container = tk.Frame(
+            self.root,
+            bg="#f5f5f5",
+            width=ROW_WIDTH
+        )
+        self.items_container.pack(fill="both", expand=True)
+        self.items_container.pack_propagate(False)
+
+
+
+        gear_btn = tk.Button(
+            top_bar,
+            text="⚙",
+            font=("Segoe UI", 11),
+            relief="flat",
+            bg="#f5f5f5",
+            command=self.open_settings
+        )
+        gear_btn.pack(padx=10, expand=True)
+
+        # -------------------------
+        # Scroll area
+        # -------------------------
+        
+
+    # -------------------------
+    # Overlay control
+    # -------------------------
+    def show_thread_safe(self):
+        self.root.after(0, self.show)
+
     def show(self):
         self.refresh_items()
-        self.position_near_mouse()
+        self.center_overlay()
         self.root.deiconify()
         self.root.focus_force()
-        state.overlay_visible = True
 
     def hide(self):
         self.root.withdraw()
-        state.overlay_visible = False
 
-    # -----------------------------
-    # POSITION
-    # -----------------------------
-    def position_near_mouse(self):
-        x, y = get_mouse_position()
-        self.root.geometry(f"+{x + 15}+{y + 15}")
+    def center_overlay(self):
+        self.refresh_items_overlay()
 
-    # -----------------------------
-    # ITEMS
-    # -----------------------------
-    def refresh_items(self):
-        for w in self.items_widgets:
-            w.destroy()
-        self.items_widgets.clear()
+        cursor_x, cursor_y = pyautogui.position()
 
-        items = ClipboardManager.get_all()
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
 
-        if not items:
-            label = tk.Label(
-                self.frame,
-                text="Clipboard vacío",
-                bg="white",
-                fg="gray",
-                padx=10,
-                pady=10
-            )
-            label.pack(fill="x")
-            self.items_widgets.append(label)
-            return
+        x = cursor_x + 12
+        y = cursor_y + 12
 
-        for index, text in enumerate(items):
-            preview = text.replace("\n", " ")[:60]
+        if x + self.overlay_width > screen_w:
+            x = cursor_x - self.overlay_width - 12
 
-            label = tk.Label(
-                self.frame,
-                text=preview,
-                anchor="w",
-                bg="white",
-                fg="black",
-                padx=10,
-                pady=6
-            )
-            label.pack(fill="x")
-            label.bind("<Button-1>", lambda e, i=index: self.select_index(i))
-            label.bind("<Double-Button-1>", lambda e, i=index: self.paste_index(i))
+        if y + self.overlay_height > screen_h:
+            y = screen_h - self.overlay_height - 10
+            
+        global savedX, savedY
+        savedX = x
+        savedY = y
 
-            self.items_widgets.append(label)
+        self.root.geometry(
+            f"{self.overlay_width}x{self.overlay_height}+{x}+{y}"
+        )
 
-        state.selected_index = 0
-        self.update_selection()
-
-    # -----------------------------
-    # SELECTION
-    # -----------------------------
-    def update_selection(self):
-        for i, widget in enumerate(self.items_widgets):
-            if i == state.selected_index:
-                widget.configure(bg="#111", fg="white")
-            else:
-                widget.configure(bg="white", fg="black")
-
-    def select_up(self, event=None):
-        if state.selected_index > 0:
-            state.selected_index -= 1
-            self.update_selection()
-
-    def select_down(self, event=None):
-        if state.selected_index < len(self.items_widgets) - 1:
-            state.selected_index += 1
-            self.update_selection()
-
-    def select_index(self, index):
-        state.selected_index = index
-        self.update_selection()
-
-    # -----------------------------
-    # PASTE
-    # -----------------------------
-    def paste_selected(self, event=None):
-        self.paste_index(state.selected_index)
-
-    def paste_index(self, index):
-        items = ClipboardManager.get_all()
-        if 0 <= index < len(items):
-            ClipboardManager.set_clipboard(items[index])
-
-            # Esperar un poco antes de pegar
-            self.root.after(50, self.simulate_ctrl_v)
-
-        self.hide()
-
-    
-    def simulate_ctrl_v(self):
-        keyboard_controller.press(Key.ctrl)
-        keyboard_controller.press('v')
-        keyboard_controller.release('v')
-        keyboard_controller.release(Key.ctrl)
+        self.root.attributes("-alpha", 0.97)
 
         
-    # -----------------------------
-    # THREAD-SAFE SHOW
-    # -----------------------------
-    def show_thread_safe(self):
-        self.root.after(0, self.show)
+    def refresh_items_overlay(self):
+        visible_count = min(len(ClipboardManager.get_all()), MAX_VISIBLE_ITEMS)
+
+        self.overlay_width = ROW_WIDTH
+        self.overlay_height = (ROW_HEIGHT * visible_count) + TOP_BAR_HEIGHT
+
+        self.root.geometry(
+            f"{self.overlay_width}x{self.overlay_height}+{savedX}+{savedY}"
+        )
+
+
+
+
+
+    # -------------------------
+    # Items
+    # -------------------------
+    def refresh_items(self):
+        for row in self.item_rows:
+            row.destroy()
+        self.item_rows.clear()
+
+        items = ClipboardManager.get_all()
+        visible_items = items[:MAX_VISIBLE_ITEMS]
+
+        if self.selected_index >= len(items):
+            self.selected_index = max(0, len(items) - 1)
+
+        for index, text in enumerate(visible_items):
+            display = text.replace("\n", " ")
+            if len(display) > 4:
+                display = display[:4] + "..."
+
+            selected = index == self.selected_index
+            bg = "#000" if selected else "#fff"
+            fg = "#fff" if selected else "#000"
+
+            row = tk.Frame(
+                self.items_container,
+                bg=bg,
+                width=ROW_WIDTH,
+                height=ROW_HEIGHT
+            )
+            row.pack(fill="x")
+            row.pack_propagate(False)
+
+            label = tk.Label(
+                row,
+                text=display,
+                anchor="w",
+                padx=10,
+                pady=6,
+                bg=bg,
+                fg=fg,
+                font=("Segoe UI", 9),
+            )
+            label.pack(side="left", fill="x", expand=True)
+            
+            label.bind("<Button-1>", lambda e, i=index: self.selectMouse(i))
+
+            del_btn = tk.Button(
+                row,
+                text="✖",
+                bg=bg,
+                fg=fg,
+                relief="flat",
+                command=lambda i=index: self.delete_item(i)
+            )
+            del_btn.pack(side="right", padx=6)
+
+            self.item_rows.append(row)
+
+            
+
+
+
+    def delete_item(self, index):
+        ClipboardManager.remove(index)
+        self.refresh_items()
+        self.refresh_items_overlay()
+
+    # -------------------------
+    # Selection
+    # -------------------------
+    def select(self, index):
+        self.selected_index = index
+        self.refresh_items()
+
+    def confirm(self, index):
+        self.selected_index = index
+        self.confirm_selected()
+    
+    def selectMouse(self, index):
+        self.select(index)
+        self.confirm(index)
+
+    def confirm_selected(self, event=None):
+        items = ClipboardManager.get_all()
+        if items:
+            ClipboardManager.set_clipboard(items[self.selected_index])
+            self.hide()
+            pyautogui.hotkey("ctrl", "v")
+
+
+
+
+
+    # -------------------------
+    # Keyboard navigation
+    # -------------------------
+    def move_up(self, event=None):
+        if self.selected_index > 0:
+            self.selected_index -= 1
+            self.refresh_items()
+
+    def move_down(self, event=None):
+        if self.selected_index < len(ClipboardManager.get_all()) - 1:
+            self.selected_index += 1
+            if self.selected_index >= MAX_VISIBLE_ITEMS:
+                self.selected_index = MAX_VISIBLE_ITEMS - 1
+            self.refresh_items()
+
+    # -------------------------
+    # Gear
+    # -------------------------
+    def open_settings(self):
+        self.hide()
+        if self.on_stop_listener:
+            self.on_stop_listener()
+        if self.on_open_settings:
+            self.on_open_settings()
