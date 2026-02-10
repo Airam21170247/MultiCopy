@@ -4,8 +4,8 @@ import tkinter as tk
 from tkinter import ttk
 from core.clipboardManager import ClipboardManager
 import pyautogui
+from core.state import state
 
-MAX_VISIBLE_ITEMS = 5
 ROW_WIDTH = 110
 ROW_HEIGHT = 43
 TOP_BAR_HEIGHT = 43
@@ -113,7 +113,7 @@ class ClipboardOverlay:
 
         
     def refresh_items_overlay(self):
-        visible_count = min(len(ClipboardManager.get_all()), MAX_VISIBLE_ITEMS)
+        visible_count = min(len(ClipboardManager.get_all()), state.max_items_visible)
 
         self.overlay_width = ROW_WIDTH
         self.overlay_height = (ROW_HEIGHT * visible_count) + TOP_BAR_HEIGHT
@@ -135,7 +135,7 @@ class ClipboardOverlay:
         self.item_rows.clear()
 
         items = ClipboardManager.get_all()
-        visible_items = items[:MAX_VISIBLE_ITEMS]
+        visible_items = items[:state.max_items_visible]
 
         if self.selected_index >= len(items):
             self.selected_index = max(0, len(items) - 1)
@@ -230,8 +230,8 @@ class ClipboardOverlay:
     def move_down(self, event=None):
         if self.selected_index < len(ClipboardManager.get_all()) - 1:
             self.selected_index += 1
-            if self.selected_index >= MAX_VISIBLE_ITEMS:
-                self.selected_index = MAX_VISIBLE_ITEMS - 1
+            if self.selected_index >= state.max_items_visible:
+                self.selected_index = state.max_items_visible - 1
             self.refresh_items()
 
     # -------------------------
