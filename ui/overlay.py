@@ -1,5 +1,7 @@
 # Overlay UI for clipboard management using Tkinter.
 
+from utils.configManager import save_config
+from utils.config import config
 import tkinter as tk
 from tkinter import ttk
 from core.clipboardManager import ClipboardManager
@@ -239,6 +241,7 @@ class ClipboardOverlay:
     # -------------------------
     def open_settings(self):
         self.hide()
+        save_config(state, config)
         if self.on_stop_listener:
             self.on_stop_listener()
         if self.on_open_settings:

@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog
 from core.clipboardManager import ClipboardManager
 from core.state import state
 from utils.config import config
+from utils.configManager import load_config, save_config
 
 KEY_MAP = {
     "control_l": "<ctrl>",
@@ -21,7 +22,6 @@ class SettingsWindow:
         self.on_start = on_start_callback
         self.captured_keys = set()
         self.is_recording_hotkey = False
-        
         self.root = tk.Tk()
         self.root.title("MultiCopy Settings")
         self.root.geometry("420x750")
@@ -30,6 +30,8 @@ class SettingsWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.force_exit)
         
         self.hotkey_captured = config.show_overlay_hotkey
+        
+        
 
         # ------------------------
         # Title
@@ -43,7 +45,7 @@ class SettingsWindow:
         # ------------------------
         # Hotkey
         # ------------------------
-        hotkey_frame = ttk.LabelFrame(self.root, text="Hotkey")
+        hotkey_frame = ttk.LabelFrame(self.root, text="Shortcut")
         hotkey_frame.pack(fill="x", padx=20, pady=10)
 
         self.hotkey_label = tk.Label(
@@ -191,6 +193,7 @@ class SettingsWindow:
 
         self._mark_button_done(self.import_btn, "Import (.txt)")
         self.refresh_clipboard_view()
+        save_config(state, config)
 
     def export_txt(self):
         path = filedialog.asksaveasfilename(
@@ -245,6 +248,7 @@ class SettingsWindow:
             if new_text:
                 state.clipboard_items[index] = new_text
                 self.refresh_clipboard_view()
+            save_config(state, config)
             editor.destroy()
 
         ttk.Button(editor, text="Save", command=save).pack(pady=5)
@@ -259,6 +263,7 @@ class SettingsWindow:
         state.max_items_visible = int(self.max_items_visible_spin.get())
         self._reset_button_text(self.import_btn, "Import (.txt)  ")
         self._reset_button_text(self.export_btn, "Export (.txt)  ")
+        save_config(state, config)
         self.root.destroy()
         self.on_start()
 
